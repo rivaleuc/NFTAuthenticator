@@ -1,45 +1,16 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>NFTAuthenticator</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-[#0a0a0a] text-white min-h-screen">
-  <nav class="border-b border-gray-800 px-6 py-4 flex justify-between items-center">
-    <div class="flex items-center gap-2"><span class="text-2xl">🎨</span><h1 class="text-xl font-bold">NFTAuthenticator</h1></div>
-    <span class="text-xs text-gray-500">Verified: 2 | Fakes caught: 0</span>
-  </nav>
-  <main class="max-w-4xl mx-auto p-6 space-y-6">
-    <!-- Verify -->
-    <section class="bg-[#141414] rounded-2xl p-6 border border-gray-800">
-      <h2 class="text-rose-400 font-semibold mb-4">Verify NFT Authenticity</h2>
-      <div class="grid md:grid-cols-3 gap-3 mb-3">
-        <input placeholder="NFT/OpenSea URL" class="bg-black border border-gray-800 rounded-xl px-4 py-3 placeholder-gray-600 outline-none col-span-2 md:col-span-1">
-        <input placeholder="Collection name" class="bg-black border border-gray-800 rounded-xl px-4 py-3 placeholder-gray-600 outline-none">
-        <input placeholder="Claimed creator" class="bg-black border border-gray-800 rounded-xl px-4 py-3 placeholder-gray-600 outline-none">
-      </div>
-      <button class="w-full bg-rose-600 hover:bg-rose-500 rounded-xl py-3 font-bold transition">🔎 Verify Authenticity</button>
-    </section>
-
-    <!-- Gallery Result -->
-    <section>
-      <h3 class="text-gray-400 text-sm uppercase tracking-wider mb-3">Recent Verifications</h3>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="bg-[#141414] rounded-2xl border border-green-900/50 overflow-hidden">
-          <div class="h-40 bg-gradient-to-br from-amber-900/20 to-green-900/20 flex items-center justify-center text-4xl">🐵</div>
-          <div class="p-4">
-            <div class="flex items-center gap-2 mb-1">
-              <span class="text-green-400 text-lg">✓</span>
-              <span class="font-semibold text-sm">BAYC #1</span>
-              <span class="ml-auto px-2 py-0.5 bg-green-900/50 text-green-400 text-xs rounded-full">Authentic</span>
-            </div>
-            <p class="text-xs text-gray-500">High confidence — Genesis Bored Ape, minted by YugaLabs</p>
-            <p class="text-xs text-gray-600 mt-1">Collection: Bored Ape Yacht Club</p>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="NFTAuthenticator — verify whether NFT art is original or copied, on-chain." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+    <title>NFTAuthenticator — Provenance for Digital Art</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
