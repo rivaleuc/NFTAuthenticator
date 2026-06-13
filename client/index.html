@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NFT Authenticator</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; display: flex; justify-content: center; align-items: center; }
+    .app { max-width: 560px; width: 100%; padding: 2rem; }
+    h1 { margin-bottom: 1.5rem; font-size: 1.5rem; }
+    label { display: block; margin-bottom: .25rem; font-size: .875rem; color: #8b949e; }
+    input { width: 100%; padding: .5rem; margin-bottom: 1rem; background: #161b22; border: 1px solid #30363d; border-radius: 6px; color: #e6edf3; }
+    button { padding: .5rem 1.25rem; background: #238636; border: none; border-radius: 6px; color: #fff; cursor: pointer; font-size: .875rem; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .result { margin-top: 1.5rem; padding: 1rem; background: #161b22; border-radius: 6px; border: 1px solid #30363d; }
+    .authentic { border-color: #238636; }
+    .flagged { border-color: #da3633; }
+    .badge { display: inline-block; padding: .125rem .5rem; border-radius: 12px; font-size: .75rem; font-weight: 600; }
+    .badge.pass { background: #238636; }
+    .badge.fail { background: #da3633; }
+  </style>
+</head>
+<body>
+  <div class="app" id="app"></div>
+  <script type="module">
+    import { GENLAYER_RPC, VERDICT_FIELDS } from '../types/constants.js';
+
+    // -- MODEL --
+    let model = { imageUrl: '', collection: '', creator: '', result: null, loading: false };
+
+    // -- UPDATE --
+    const Msg = { SetField: 'SetField', Submit: 'Submit', GotResult: 'GotResult' };
+
+    function update(msg, payload) {
+      switch (msg) {
+        case Msg.SetField:
+          model[payload.field] = payload.value;
+          break;
+        case Msg.Submit:
+          model.loading = true;
+          model.result = null;
+          callVerify();
+          break;
+        case Msg.GotResult:
+          model.loading = false;
+          model.result = payload;
+          break;
+      }
+      render();
+    }
+
+    async function callVerify() {
+      try {
+        const res = await fetch(GENLAYER_RPC, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ method: 'call', params: { function: 'verify_nft', args: [model.imageUrl, model.collection, model.creator] } })
+        });
+        const data = await res.json();
+        const key = data.result;
+        const vRes = await fetch(GENLAYER_RPC, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ method: 'call', params: { function: 'get_verification', args: [key] } })
+        });
+        const vData = await vRes.json();
+        update(Msg.GotResult, vData.result);
+      } catch (e) {
+        update(Msg.GotResult, { verdict: { authentic: false, confidence: 'low', similar_found: 'error', reasoning: e.message } });
+      }
+    }
+
+    // -- VIEW --
+    function render() {
+      const app = document.getElementById('app');
+      let html = `<h1>NFT Authenticator</h1>
+        <label for="url">Image URL</label>
+        <input id="url" value="${model.imageUrl}" placeholder="https://...">
+        <label for="col">Collection Name</label>
+        <input id="col" value="${model.collection}" placeholder="e.g. BoredApes">
+        <label for="creator">Claimed Creator</label>
+        <input id="creator" value="${model.creator}" placeholder="e.g. YugaLabs">
+        <button id="verify" ${model.loading ? 'disabled' : ''}>${model.loading ? 'Verifying...' : 'Verify Authenticity'}</button>`;
+
+      if (model.result && model.result.verdict) {
+        const v = model.result.verdict;
+        const cls = v.authentic ? 'authentic' : 'flagged';
+        const badge = v.authentic ? '<span class="badge pass">AUTHENTIC</span>' : '<span class="badge fail">FLAGGED</span>';
+        html += `<div class="result ${cls}">
+          ${badge} <strong>Confidence:</strong> ${v.confidence}<br>
+          <strong>Similar:</strong> ${v.similar_found}<br>
+          <strong>Reasoning:</strong> ${v.reasoning}
+        </div>`;
+      }
+      app.innerHTML = html;
+      document.getElementById('url').addEventListener('input', e => update(Msg.SetField, { field: 'imageUrl', value: e.target.value }));
+      document.getElementById('col').addEventListener('input', e => update(Msg.SetField, { field: 'collection', value: e.target.value }));
+      document.getElementById('creator').addEventListener('input', e => update(Msg.SetField, { field: 'creator', value: e.target.value }));
+      document.getElementById('verify').addEventListener('click', () => update(Msg.Submit));
+    }
+
+    render();
+  </script>
+</body>
+</html>
