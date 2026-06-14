@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Toaster, toast } from 'sonner'
-import { read, write, CONTRACT } from './genlayer'
+import { read, write, CONTRACT, connectWallet, isWalletConnected } from './genlayer'
 
 type Verdict = 'authentic' | 'suspect' | 'forgery'
 
@@ -87,6 +87,17 @@ function App() {
   const [verifying, setVerifying] = useState(false)
   const [verifCount, setVerifCount] = useState<number | null>(null)
   const [verifyResult, setVerifyResult] = useState<any | null>(null)
+  const [walletAddr, setWalletAddr] = useState<string | null>(null)
+
+  async function handleConnect() {
+    try {
+      const a = await connectWallet()
+      setWalletAddr(a.slice(0, 6) + '…' + a.slice(-4))
+      toast.success('Wallet connected')
+    } catch (e: any) {
+      toast.error(e.message || 'Connect failed')
+    }
+  }
 
   useEffect(() => {
     read('stats')
@@ -155,6 +166,16 @@ function App() {
           {verifCount != null && (
             <span className="hidden text-xs italic text-stone-500 sm:inline">{verifCount} works verified</span>
           )}
+          <button
+            onClick={handleConnect}
+            className={`rounded-sm border px-4 py-1.5 text-xs uppercase tracking-[0.15em] transition ${
+              isWalletConnected()
+                ? 'border-stone-800 bg-stone-800 text-[#F5F0E8]'
+                : 'border-stone-400 text-stone-600 hover:border-stone-800 hover:text-stone-900'
+            }`}
+          >
+            {walletAddr ? `● ${walletAddr}` : 'Connect Wallet'}
+          </button>
           <button
             onClick={() => setVerifyOpen(true)}
             className="rounded-sm border border-stone-800 px-4 py-1.5 text-xs uppercase tracking-[0.15em] text-stone-800 transition hover:bg-stone-800 hover:text-[#F5F0E8]"
