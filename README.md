@@ -16,11 +16,6 @@ Determining art authenticity is pure judgment:
 
 **GenLayer (Bradbury):** `0xbe8EFE211D8B3b4ecb32F1EA742e432DD9113197`
 
-## Test result
-
-Verified: BAYC #1 (Bored Ape Yacht Club)
-→ ✅ **Authentic** (high confidence) — "Token #1 is the genesis Bored Ape Yacht Club NFT, minted by YugaLabs. All page details match the official BAYC collection."
-
 ## Structure
 
 ```
