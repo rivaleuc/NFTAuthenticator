@@ -4,8 +4,8 @@
 
 NFTAuthenticator answers "is this NFT genuinely the claimed creator's original work?" without a centralized authentication house. A requester submits the image/listing URL, the collection, and the claimed creator; validators independently render the page and an LLM weighs it for copied styles, stolen art, or undisclosed AI generation. The verdict — `authentic` true/false plus a confidence band and any similar sources — is recorded permanently on chain.
 
-- **Contract (Bradbury, chain 4221):** `0xbe8EFE211D8B3b4ecb32F1EA742e432DD9113197`
-- **Explorer:** https://explorer-bradbury.genlayer.com/contract/0xbe8EFE211D8B3b4ecb32F1EA742e432DD9113197
+- **Contract (Bradbury, chain 4221):** `0x39E3e64f341611a802f385200359AD2b19dEb980`
+- **Explorer:** https://explorer-bradbury.genlayer.com/contract/0x39E3e64f341611a802f385200359AD2b19dEb980
 - **Live app:** https://nftauthenticator.pages.dev
 
 ## What it does

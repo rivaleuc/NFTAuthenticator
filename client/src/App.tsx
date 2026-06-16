@@ -6,55 +6,63 @@ import { read, write, CONTRACT, connectWallet, isWalletConnected } from './genla
 type Verdict = 'authentic' | 'suspect' | 'forgery'
 
 type Piece = {
-  id: number
-  title: string
-  artist: string
+  key: string
+  imageUrl: string
   collection: string
-  year: string
-  height: number
-  hue: number
+  creator: string
+  authentic: boolean
+  confidence: string
+  similarFound: string
+  reasoning: string
   verdict: Verdict
-  provenance: string[]
 }
 
 const VERDICT_META: Record<Verdict, { label: string; ring: string; dot: string; note: string }> = {
-  authentic: { label: 'Authentic', ring: 'border-emerald-700/40', dot: 'bg-emerald-600', note: 'Provenance chain unbroken; mint signature verified.' },
-  suspect: { label: 'Under Review', ring: 'border-amber-700/40', dot: 'bg-amber-500', note: 'Metadata anomaly detected; awaiting validator quorum.' },
-  forgery: { label: 'Flagged Forgery', ring: 'border-rose-800/40', dot: 'bg-rose-600', note: 'Image hash matches a known prior mint on another chain.' },
+  authentic: { label: 'Authentic', ring: 'border-emerald-700/40', dot: 'bg-emerald-600', note: 'No infringing source found; validator consensus accepts the work as original.' },
+  suspect: { label: 'Under Review', ring: 'border-amber-700/40', dot: 'bg-amber-500', note: 'Not confirmed authentic and no concrete infringing source surfaced.' },
+  forgery: { label: 'Flagged Forgery', ring: 'border-rose-800/40', dot: 'bg-rose-600', note: 'A real similar/infringing source was found; the work is not an original.' },
 }
 
-const PIECES: Piece[] = [
-  { id: 1, title: 'Meridian No. 7', artist: 'A. Vasari', collection: 'Cartographies', year: '2024', height: 360, hue: 28, verdict: 'authentic', provenance: ['Minted by 0x4f…a1c', 'Sold via Foundation', 'Held 412 days', 'Signature verified'] },
-  { id: 2, title: 'Salt & Static', artist: 'R. Mbeki', collection: 'Noise Studies', year: '2023', height: 240, hue: 200, verdict: 'suspect', provenance: ['Minted by 0x9b…77e', 'Metadata edited post-mint', 'Quorum pending'] },
-  { id: 3, title: 'The Long Field', artist: 'I. Sokolova', collection: 'Pastoral', year: '2025', height: 300, hue: 96, verdict: 'authentic', provenance: ['Minted by 0x2a…0d4', 'Never transferred', 'On-chain signature valid'] },
-  { id: 4, title: 'Counterfeit Bloom', artist: 'unknown', collection: '—', year: '2022', height: 280, hue: 330, verdict: 'forgery', provenance: ['Image hash collision', 'Original on Tezos 2021', 'Flagged by 3 validators'] },
-  { id: 5, title: 'Ochre Interval', artist: 'A. Vasari', collection: 'Cartographies', year: '2024', height: 420, hue: 44, verdict: 'authentic', provenance: ['Minted by 0x4f…a1c', 'Provenance unbroken', 'Verified'] },
-  { id: 6, title: 'Glass Reliquary', artist: 'T. Nakamura', collection: 'Vessels', year: '2025', height: 260, hue: 168, verdict: 'authentic', provenance: ['Minted by 0xc1…ef9', 'Auction house attested', 'Verified'] },
-  { id: 7, title: 'Untitled (Drift)', artist: 'R. Mbeki', collection: 'Noise Studies', year: '2023', height: 340, hue: 268, verdict: 'suspect', provenance: ['Minted by 0x9b…77e', 'Creator wallet disputed', 'Review open'] },
-  { id: 8, title: 'Harvest Index', artist: 'I. Sokolova', collection: 'Pastoral', year: '2025', height: 300, hue: 12, verdict: 'authentic', provenance: ['Minted by 0x2a…0d4', 'Single owner', 'Verified'] },
-  { id: 9, title: 'Mirror Forgery #2', artist: 'unknown', collection: '—', year: '2021', height: 220, hue: 350, verdict: 'forgery', provenance: ['Duplicate of Meridian No.3', 'Hash match 0.98', 'Flagged'] },
-]
+// Mirror the contract's deterministic "no infringing source" set.
+const NO_SOURCE = ['', 'none', 'none found', 'no similar sources found', 'n/a']
+function hasRealSource(sf: string): boolean {
+  return !NO_SOURCE.includes((sf ?? '').trim().toLowerCase())
+}
+function deriveVerdict(authentic: boolean, similarFound: string): Verdict {
+  if (authentic) return 'authentic'
+  return hasRealSource(similarFound) ? 'forgery' : 'suspect'
+}
 
-function Artwork({ id, height }: { id: number; height: number }) {
+function mapVerification(key: string, v: any): Piece {
+  const authentic = Boolean(v?.authentic ?? v?.[4])
+  const similarFound = String(v?.similar_found ?? v?.[6] ?? '')
+  return {
+    key,
+    imageUrl: String(v?.image_url ?? v?.[1] ?? ''),
+    collection: String(v?.collection ?? v?.[2] ?? ''),
+    creator: String(v?.claimed_creator ?? v?.[3] ?? ''),
+    authentic,
+    confidence: String(v?.confidence ?? v?.[5] ?? 'low'),
+    similarFound,
+    reasoning: String(v?.reasoning ?? v?.[7] ?? ''),
+    verdict: deriveVerdict(authentic, similarFound),
+  }
+}
+
+function Artwork({ src, seed, height }: { src: string; seed: string; height: number }) {
   const [loaded, setLoaded] = useState(false)
-  // Real, existing on-chain NFTs — Nouns DAO. Each id maps to a distinct real Noun.
-  const nounIds = [11, 40, 99, 142, 200, 256, 333, 404, 512, 64, 7, 888]
-  const nounId = nounIds[id % nounIds.length]
-  const primary = `https://noun.pics/${nounId}`
-  const fallback = `https://api.dicebear.com/9.x/shapes/svg?seed=noun${nounId}&size=480`
+  const fallback = `https://api.dicebear.com/9.x/shapes/svg?seed=${encodeURIComponent(seed)}&size=480`
   return (
     <div className="relative w-full overflow-hidden bg-stone-200" style={{ height }}>
-      {!loaded && (
-        <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-stone-200 to-stone-300" />
-      )}
+      {!loaded && <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-stone-200 to-stone-300" />}
       <img
-        src={primary}
+        src={src || fallback}
         alt=""
         loading="lazy"
         onLoad={() => setLoaded(true)}
         onError={(e) => {
           const img = e.target as HTMLImageElement
-          if (img.src !== fallback) { img.src = fallback }
+          if (img.src !== fallback) img.src = fallback
           setLoaded(true)
         }}
         className={`h-full w-full object-cover transition-all duration-700 ${loaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}`}
@@ -78,7 +86,8 @@ function Badge({ verdict, small }: { verdict: Verdict; small?: boolean }) {
 }
 
 function App() {
-  const [pieces] = useState<Piece[]>(PIECES)
+  const [pieces, setPieces] = useState<Piece[]>([])
+  const [loading, setLoading] = useState(true)
   const [active, setActive] = useState<Piece | null>(null)
   const [verifyOpen, setVerifyOpen] = useState(false)
   const [vUrl, setVUrl] = useState('')
@@ -86,7 +95,6 @@ function App() {
   const [vCreator, setVCreator] = useState('')
   const [verifying, setVerifying] = useState(false)
   const [verifCount, setVerifCount] = useState<number | null>(null)
-  const [verifyResult, setVerifyResult] = useState<any | null>(null)
   const [walletAddr, setWalletAddr] = useState<string | null>(null)
 
   async function handleConnect() {
@@ -99,12 +107,32 @@ function App() {
     }
   }
 
+  async function loadGallery() {
+    try {
+      const s: any = await read('stats')
+      const total = Number(s?.total_verifications ?? s?.[0] ?? 0)
+      setVerifCount(total)
+      const loaded: Piece[] = []
+      for (let i = 0; i < total; i++) {
+        try {
+          const v: any = await read('get_verification', [String(i)])
+          if (v?.exists === false) continue
+          loaded.push(mapVerification(String(i), v))
+        } catch {
+          /* skip unreadable record */
+        }
+      }
+      loaded.reverse()
+      setPieces(loaded)
+    } catch {
+      /* keep empty gallery on read failure */
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    read('stats')
-      .then((s: any) => setVerifCount(Number(s?.total_verifications ?? s?.[0] ?? 0)))
-      .catch(() => {
-        /* keep fallback on read failure */
-      })
+    loadGallery()
   }, [])
 
   async function runVerify() {
@@ -124,24 +152,16 @@ function App() {
       setVerifCount(total)
 
       const v: any = await read('get_verification', [String(total - 1)])
-      const authentic = Boolean(v?.authentic ?? v?.[0])
-      const rawConf = Number(v?.confidence ?? v?.[1] ?? 0)
-      const confidence = Math.round(rawConf <= 1 ? rawConf * 100 : rawConf)
-      const similar = Boolean(v?.similar_found ?? v?.[2])
-      const reasoning = String(v?.reasoning ?? v?.[3] ?? '')
-      const imageUrl = String(v?.image_url ?? v?.[4] ?? url)
-      const collectionName = String(v?.collection ?? v?.[5] ?? collection)
-      const claimedCreator = String(v?.claimed_creator ?? v?.[6] ?? creator)
-      const verdict: Verdict = authentic ? 'authentic' : similar ? 'forgery' : 'suspect'
+      const piece = mapVerification(String(total - 1), v)
 
-      setVerifyResult({ verdict, authentic, confidence, similar, reasoning, imageUrl, collection: collectionName, claimedCreator })
+      setPieces((ps) => [piece, ...ps])
+      setActive(piece)
       setVerifyOpen(false)
       setVUrl('')
       setVCollection('')
       setVCreator('')
-      toast[authentic ? 'success' : similar ? 'error' : 'warning'](VERDICT_META[verdict].label, {
-        description: reasoning || VERDICT_META[verdict].note,
-      })
+      const kind = piece.verdict === 'authentic' ? 'success' : piece.verdict === 'forgery' ? 'error' : 'warning'
+      toast[kind](VERDICT_META[piece.verdict].label, { description: piece.reasoning || VERDICT_META[piece.verdict].note })
     } catch (e: any) {
       toast.error('Verification failed', { description: e?.message ?? String(e) })
     } finally {
@@ -150,13 +170,9 @@ function App() {
   }
 
   return (
-    <div
-      className="min-h-screen bg-[#F5F0E8] text-stone-800 antialiased"
-      style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-    >
+    <div className="min-h-screen bg-[#F5F0E8] text-stone-800 antialiased" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
       <Toaster theme="light" position="top-center" richColors />
 
-      {/* SLIM TOP BAR */}
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-stone-300/70 bg-[#F5F0E8]/90 px-6 py-3 backdrop-blur">
         <div className="flex items-baseline gap-3">
           <h1 className="text-lg tracking-[0.2em] text-stone-900">THE AUTHENTICATOR</h1>
@@ -185,37 +201,47 @@ function App() {
         </div>
       </header>
 
-      {/* GALLERY LABEL */}
       <div className="mx-auto max-w-6xl px-6 pt-10 pb-6">
-        <p className="text-xs uppercase tracking-[0.3em] text-stone-500">Current exhibition</p>
-        <h2 className="mt-2 text-3xl text-stone-900">On-Chain Provenance, Room I</h2>
+        <p className="text-xs uppercase tracking-[0.3em] text-stone-500">On-chain record</p>
+        <h2 className="mt-2 text-3xl text-stone-900">Verified Works</h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-stone-600">
-          Each work below carries an authenticity badge issued by validator consensus. Select a piece to read its
-          provenance verdict.
+          Every work below was submitted to <span className="font-mono not-italic text-xs">verify_nft</span> and carries an
+          authenticity verdict reached by validator consensus on GenLayer. Select a piece to read its reasoning.
         </p>
       </div>
 
-      {/* MASONRY GRID */}
       <main className="mx-auto max-w-6xl px-6 pb-24">
+        {loading && <p className="py-16 text-center text-sm italic text-stone-500">Loading verifications from chain…</p>}
+        {!loading && pieces.length === 0 && (
+          <div className="py-16 text-center">
+            <p className="text-sm italic text-stone-500">No works verified yet.</p>
+            <button
+              onClick={() => setVerifyOpen(true)}
+              className="mt-4 rounded-sm border border-stone-800 px-5 py-2 text-xs uppercase tracking-[0.15em] text-stone-800 transition hover:bg-stone-800 hover:text-[#F5F0E8]"
+            >
+              Verify the first work
+            </button>
+          </div>
+        )}
         <div className="columns-1 gap-6 sm:columns-2 lg:columns-3 [&>*]:mb-6">
           {pieces.map((p) => (
             <motion.button
-              key={p.id}
+              key={p.key}
               layout
               onClick={() => setActive(p)}
               whileHover={{ y: -4 }}
               className="group block w-full break-inside-avoid overflow-hidden rounded-sm border border-stone-300/80 bg-white text-left shadow-[0_1px_0_rgba(0,0,0,0.04)] transition hover:shadow-xl"
             >
               <div className="relative">
-                <Artwork id={p.id} height={p.height} />
+                <Artwork src={p.imageUrl} seed={`nft${p.key}`} height={300} />
                 <div className="absolute left-3 top-3">
                   <Badge verdict={p.verdict} small />
                 </div>
               </div>
               <div className="px-4 py-3">
-                <p className="text-base leading-tight text-stone-900">{p.title}</p>
-                <p className="mt-0.5 text-xs italic text-stone-500">
-                  {p.artist} · {p.collection} · {p.year}
+                <p className="truncate text-base leading-tight text-stone-900">{p.collection || 'Untitled work'}</p>
+                <p className="mt-0.5 truncate text-xs italic text-stone-500">
+                  {p.creator || 'unknown creator'} · confidence: {p.confidence}
                 </p>
               </div>
             </motion.button>
@@ -249,8 +275,8 @@ function App() {
               <p className="text-xs uppercase tracking-[0.25em] text-stone-500">Provenance check</p>
               <h3 className="mt-1 text-2xl text-stone-900">Verify a work</h3>
               <p className="mt-2 text-sm leading-relaxed text-stone-600">
-                Enter the artwork image URL, its collection, and the claimed creator. Validators trace the mint
-                signature and cross-chain history.
+                Enter the artwork image URL, its collection, and the claimed creator. Validators render the page and
+                check for infringing or duplicate sources.
               </p>
               <input
                 value={vUrl}
@@ -293,72 +319,7 @@ function App() {
         )}
       </AnimatePresence>
 
-      {/* VERIFICATION RESULT LIGHTBOX */}
-      <AnimatePresence>
-        {verifyResult && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setVerifyResult(null)}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/70 px-4 backdrop-blur"
-          >
-            <motion.div
-              initial={{ scale: 0.94, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.94, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="grid w-full max-w-4xl grid-cols-1 overflow-hidden rounded-sm bg-[#F5F0E8] shadow-2xl md:grid-cols-2"
-            >
-              <div className="min-h-[260px] bg-stone-200">
-                {verifyResult.imageUrl ? (
-                  <img src={verifyResult.imageUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-stone-400">no image</div>
-                )}
-              </div>
-              <div className="flex flex-col p-7">
-                <div className="flex items-start justify-between">
-                  <Badge verdict={verifyResult.verdict as Verdict} />
-                  <button
-                    onClick={() => setVerifyResult(null)}
-                    className="text-stone-400 transition hover:text-stone-800"
-                    aria-label="Close"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <h3 className="mt-4 text-2xl text-stone-900">
-                  {verifyResult.authentic ? 'Authentic work' : VERDICT_META[verifyResult.verdict as Verdict].label}
-                </h3>
-                <p className="mt-1 text-sm italic text-stone-500">
-                  {verifyResult.collection || 'unknown collection'} · {verifyResult.claimedCreator || 'unknown creator'}
-                </p>
-
-                <div className="mt-5 rounded-sm border border-stone-300 bg-white/60 p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs uppercase tracking-[0.2em] text-stone-500">Confidence</p>
-                    <p className="font-mono text-sm text-stone-800">{verifyResult.confidence}%</p>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between">
-                    <p className="text-xs uppercase tracking-[0.2em] text-stone-500">Similar found</p>
-                    <p className="font-mono text-sm text-stone-800">{verifyResult.similar ? 'yes' : 'no'}</p>
-                  </div>
-                </div>
-
-                <p className="mt-5 text-xs uppercase tracking-[0.2em] text-stone-500">Validator reasoning</p>
-                <p className="mt-2 text-sm leading-relaxed text-stone-700">
-                  {verifyResult.reasoning || VERDICT_META[verifyResult.verdict as Verdict].note}
-                </p>
-
-                <p className="mt-auto pt-6 font-mono text-[10px] text-stone-400">{CONTRACT}</p>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* DETAIL LIGHTBOX */}
+      {/* DETAIL / RESULT LIGHTBOX */}
       <AnimatePresence>
         {active && (
           <motion.div
@@ -375,8 +336,8 @@ function App() {
               onClick={(e) => e.stopPropagation()}
               className="grid w-full max-w-4xl grid-cols-1 overflow-hidden rounded-sm bg-[#F5F0E8] shadow-2xl md:grid-cols-2"
             >
-              <div className="bg-stone-200">
-                <Artwork id={active.id} height={Math.min(active.height + 80, 480)} />
+              <div className="min-h-[260px] bg-stone-200">
+                <Artwork src={active.imageUrl} seed={`nft${active.key}`} height={420} />
               </div>
               <div className="flex flex-col p-7">
                 <div className="flex items-start justify-between">
@@ -389,29 +350,43 @@ function App() {
                     ✕
                   </button>
                 </div>
-                <h3 className="mt-4 text-2xl text-stone-900">{active.title}</h3>
+                <h3 className="mt-4 text-2xl text-stone-900">
+                  {active.authentic ? 'Authentic work' : VERDICT_META[active.verdict].label}
+                </h3>
                 <p className="mt-1 text-sm italic text-stone-500">
-                  {active.artist} · {active.collection} · {active.year}
+                  {active.collection || 'unknown collection'} · {active.creator || 'unknown creator'}
                 </p>
 
                 <div className="mt-5 rounded-sm border border-stone-300 bg-white/60 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-stone-500">Verdict</p>
-                  <p className="mt-1 text-sm leading-relaxed text-stone-700">{VERDICT_META[active.verdict].note}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs uppercase tracking-[0.2em] text-stone-500">Confidence</p>
+                    <p className="font-mono text-sm capitalize text-stone-800">{active.confidence}</p>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <p className="text-xs uppercase tracking-[0.2em] text-stone-500">Similar source</p>
+                    <p className="max-w-[55%] truncate font-mono text-sm text-stone-800">
+                      {hasRealSource(active.similarFound) ? active.similarFound : 'none'}
+                    </p>
+                  </div>
                 </div>
 
-                <p className="mt-5 text-xs uppercase tracking-[0.2em] text-stone-500">Provenance chain</p>
-                <ol className="mt-2 space-y-2">
-                  {active.provenance.map((step, i) => (
-                    <li key={i} className="flex gap-3 text-sm text-stone-700">
-                      <span className="font-mono text-xs text-stone-400">{String(i + 1).padStart(2, '0')}</span>
-                      {step}
-                    </li>
-                  ))}
-                </ol>
-
-                <p className="mt-auto pt-6 font-mono text-[10px] text-stone-400">
-                  {CONTRACT}
+                <p className="mt-5 text-xs uppercase tracking-[0.2em] text-stone-500">Validator reasoning</p>
+                <p className="mt-2 text-sm leading-relaxed text-stone-700">
+                  {active.reasoning || VERDICT_META[active.verdict].note}
                 </p>
+
+                {active.imageUrl && (
+                  <a
+                    href={active.imageUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-4 inline-block text-xs text-stone-600 underline hover:text-stone-900"
+                  >
+                    View source page ↗
+                  </a>
+                )}
+
+                <p className="mt-auto pt-6 font-mono text-[10px] text-stone-400">{CONTRACT}</p>
               </div>
             </motion.div>
           </motion.div>

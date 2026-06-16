@@ -2,6 +2,9 @@
 import json
 from genlayer import *
 
+# Normalized similar_found values that mean "no infringing/similar source".
+_NO_SOURCE = ("", "none", "none found", "no similar sources found", "n/a")
+
 
 class NFTAuthenticator(gl.Contract):
     verifications: TreeMap[str, str]
@@ -59,18 +62,47 @@ RULES:
 Reply ONLY valid JSON:
 {{"authentic": true/false, "confidence": "high"/"medium"/"low", "similar_found": "<sources or 'none'>", "reasoning": "<brief>"}}"""
             raw = gl.nondet.exec_prompt(prompt, response_format="json")
-            if isinstance(raw, dict):
-                return json.dumps(raw)
-            return str(raw).strip()
+            data = raw if isinstance(raw, dict) else json.loads(str(raw).strip())
+
+            # Deterministic cross-field anchor: an authentic original cannot have
+            # a real infringing/similar source. If a real similar source is found,
+            # force authentic = False so honest leaders satisfy the invariant.
+            confidence = str(data.get("confidence", "")).strip().lower()
+            if confidence not in ("high", "medium", "low"):
+                confidence = "low"
+            similar_found = str(data.get("similar_found", "")).strip()
+            reasoning = str(data.get("reasoning", "")).strip()
+            if not reasoning:
+                reasoning = "no reasoning provided"
+            authentic = bool(data.get("authentic"))
+            has_real_source = similar_found.lower() not in _NO_SOURCE
+            if has_real_source:
+                authentic = False
+            return json.dumps({
+                "authentic": authentic,
+                "confidence": confidence,
+                "similar_found": similar_found,
+                "reasoning": reasoning,
+            })
 
         def validator_fn(leader_result) -> bool:
             if not isinstance(leader_result, gl.vm.Return):
                 return False
             try:
                 data = json.loads(leader_result.calldata)
-                if not isinstance(data.get("authentic"), bool):
-                    return False
                 if data.get("confidence") not in ("high", "medium", "low"):
+                    return False
+                authentic = data.get("authentic")
+                if not isinstance(authentic, bool):
+                    return False
+                similar_found = data.get("similar_found")
+                if not isinstance(similar_found, str):
+                    return False
+                reasoning = data.get("reasoning")
+                if not isinstance(reasoning, str) or not reasoning.strip():
+                    return False
+                # Cross-field invariant (the ANCHOR): authentic ⟹ no real source.
+                if authentic and similar_found.strip().lower() not in _NO_SOURCE:
                     return False
                 return True
             except Exception:
